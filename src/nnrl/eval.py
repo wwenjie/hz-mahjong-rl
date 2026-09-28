@@ -73,7 +73,13 @@ def _describe(values: list[float], label: str) -> str:
     )
 
 
+# 由调用方注册的自研决策器工厂：name -> 零参工厂（每次返回新对象）
+CUSTOM: dict[str, "object"] = {}
+
+
 def _build(name: str):
+    if name in CUSTOM:
+        return CUSTOM[name]()
     from majiang.cli import DECIDERS, make_decider
     from majiang.strategy import versions
     from majiang.strategy.policy import Mode
