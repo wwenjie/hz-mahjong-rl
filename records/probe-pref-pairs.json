@@ -1,0 +1,66 @@
+{
+  "config": {
+    "pairs": 500,
+    "ks": [
+      2,
+      5,
+      8,
+      11,
+      14
+    ],
+    "seed": 20260928,
+    "workers": 14,
+    "gaps": [
+      1,
+      3,
+      7
+    ]
+  },
+  "n_pairs": 1351,
+  "resolvable": 303,
+  "frac_resolvable": 0.2243,
+  "place_diff_mean": 0.0577,
+  "place_diff_sd": 1.7026,
+  "score_diff_mean": 0.0622,
+  "score_diff_t": 0.207,
+  "n_score_diffs": 1351,
+  "across_var": 3.7626,
+  "flows": 268,
+  "elapsed_s": 1960.2,
+  "gaps_report": {
+    "1": {
+      "gap": 1,
+      "n": 1351,
+      "resolvable": 303,
+      "frac_resolvable": 0.2243,
+      "top1_win_frac": 0.5347,
+      "place_diff_mean": 0.0577,
+      "place_diff_sd": 1.7026,
+      "score_diff_mean": 0.0622,
+      "score_diff_t": 0.207
+    },
+    "3": {
+      "gap": 3,
+      "n": 1349,
+      "resolvable": 370,
+      "frac_resolvable": 0.2743,
+      "top1_win_frac": 0.5541,
+      "place_diff_mean": 0.1371,
+      "place_diff_sd": 1.8735,
+      "score_diff_mean": 0.4833,
+      "score_diff_t": 1.587
+    },
+    "7": {
+      "gap": 7,
+      "n": 1209,
+      "resolvable": 370,
+      "frac_resolvable": 0.306,
+      "top1_win_frac": 0.5757,
+      "place_diff_mean": 0.2258,
+      "place_diff_sd": 1.9694,
+      "score_diff_mean": 1.1522,
+      "score_diff_t": 2.984
+    }
+  },
+  "verdict_hint": "INCONCLUSIVE: 样本不足或结果居中，需加样本"
+}
