@@ -1,0 +1,22 @@
+# 虚拟环境与构建产物
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+*.egg-info/
+dist/
+build/
+
+# 训练产物与运行中间件（体积大、可再生成）
+runs/
+ckpt/
+*.pt
+*.pth
+*.npz
+*.npy
+
+# 本地覆盖
+.env
+.env.*
+*.token
+secrets*
