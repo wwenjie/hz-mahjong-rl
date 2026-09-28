@@ -13,19 +13,46 @@
 
 - 三名成员 A（策略主线）、B（独立验证/稳定性）、C（部署/值守/RL-NN 研究）。
 - 当前默认档 `heuristic`（`tiebreak=exact-ukeire`，即 v2 冻结版本）；`tools/ab_test.py`
-  正跑 6 个 job；价值模型 `models/value_model.json` 是 29 维 GBDT，**未进运行路径**。
-- C 的研究线（原 `research/**`）结论：**价值侧已触顶**——T1（NN vs GBDT）在噪声底内打平；
-  T2（序列表征）净增益 +0.69 MSE / 143.7 = **0.48%**，且排序一致率无改善 → 该线判死。
+  正跑 6 个 job；价值模型 `models/value_model.json` 是 29 维 GBDT，**未进运行路径**
+  （`cli.py` 默认 `heuristic`，`value` 只是实验档）。
+- C 的研究线结论：**价值侧已触顶**——T1（NN vs GBDT）在噪声底内打平；T2（序列表征）
+  净增益 +0.69 MSE / 143.7 = **0.48%**，且排序一致率无改善 → 该线判死。
 - A 的机制级结论：**瓶颈在决策侧的听口宽度**（爆头是宽听口的下游，不是独立目标）。
-  `openspec` 的 6.6「新模型 vs 基线对拍」仍是**未勾选项**。
+- `openspec` 的 6.6「新模型 vs 基线对拍」仍是**未勾选项**。
 
-### 边界
+**关键区别**：C 的 T1/T2 测的是**离线 MSE**（价值预测精度）；本线的对拍测的是
+**在局强度**（把模型当真决策器，四座位旋转 A/B 的名次分/胡次数）。两者不是一回事，
+离线打平不等于在局打平——这正是 6.6 要补的那一半。
 
-- 主仓库**只读**（`src/nnrl/paths.py` 代码层强制）；本仓库全权所有。
-- 零平台请求；不碰 A 的采集进程与令牌；离线重活 `nice -n 15` 且同时只跑一个。
+### 边界（用户已确认）
 
-### 待用户拍板
+- 主仓库 `/home/wuwenjie01/majiang_ai` **只读**，代码层强制（`src/nnrl/paths.py`）。
+- 本仓库 `/home/wuwenjie01/majiang_rl`，远端 `github.com/wwenjie/hz-mahjong-rl`，全权所有。
+- 目标：**进 10/8 比赛**，效果优于现有方案才采用。
+- 授权：可在 **GPU** 上跑训练；零平台请求；不碰 A 的采集进程与令牌。
 
-1. 远端仓库地址（`github.com/wwenjie/<name>`）。
-2. 目标：进 10/8 比赛 vs 赛后研究线。
-3. GPU 使用授权边界（只读数据、不挤 A 的 CPU 队列）。
+### 关键架构决定：如何在不改主仓库的前提下评测自研决策器
+
+主仓库 `sim.batch.run_match(deciders, ...)` 接受的是**决策器对象列表**，不是名字。
+因此本线可以：
+
+1. 在主仓库**之外**实现自研决策器（实现 `choose(situation, actions, budget_ms=...)` 接口）；
+2. 由本仓库的评测器把**自研对象**与主仓库的 `heuristic` 对象混着传给 `run_match`。
+
+**完全不需要改主仓库一行**，只读边界完好。`nnrl/eval.py` 将扩展为支持传入自研决策器工厂。
+
+### 三线并行计划
+
+| 线 | 内容 | 现状 | 判据 |
+|---|---|---|---|
+| **M（MLP 价值）** | 用现有 `data/value_*` 训练 MLP → 纯 Python 导出 → **在局** A/B（`value` 档的 MLP 版）| 数据已有，GPU 空闲 | 名次分/胡次数过噪声底才可采纳 |
+| **N（NN 决策）** | 学**出牌策略网络**（对候选排序），直击「听口宽度」缺口 | 从未测过 | 同上；这是唯一有 headroom 的线 |
+| **R（RL 自对弈）** | 用 `sim/round.py` 当环境做离线自对弈 RL 原型 | 从未做 | 长线，先做可行性 + kill criteria |
+
+### 待办 / 阻塞
+
+- [ ] **远端 push 阻塞**：本机无 GitHub 凭据（`github_identity_status` = unavailable）。
+  需操作员在 Settings → Agents → Tools 连接 GitHub，或另行授权。
+- [x] 只读桥 + 边界测试（6 passed）
+- [x] 四座位旋转配对评测器 + 仪表自检（差分恒为 0）
+- [x] 数据加载（value_seq_train 24851×29 / value_valid 13653×29 / value_post 139669×29）

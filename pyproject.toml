@@ -1,5 +1,5 @@
 [project]
-name = "majiang-nnrl"
+name = "hz-mahjong-rl"
 version = "0.1.0"
 description = "杭州麻将 AI —— NN/RL/MLP 研究线（独立仓库，只读复用主仓库数据）"
 requires-python = ">=3.12"
