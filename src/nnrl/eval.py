@@ -15,6 +15,8 @@
 from __future__ import annotations
 
 import math
+import multiprocessing as mp
+import os
 import sys
 import time
 from dataclasses import dataclass, field as dc_field
@@ -112,6 +114,33 @@ def _play(names: list[str], index: int, *, rounds: int, base_score: int, seed: i
     )
 
 
+def _play_task(task: tuple) -> tuple:
+    """worker 入口：跑一场并返回四座原始统计（须为模块级函数以便 fork 传递）。
+
+    每一场都由 ``(names, index, rounds, base_score, seed)`` **完全确定**，因此
+    并行与串行的结果**逐位一致**，与 worker 数、调度顺序无关。
+    """
+    names, index, rounds, base_score, seed = task
+    return _play(list(names), index, rounds=rounds, base_score=base_score, seed=seed)
+
+
+def _run_tasks(tasks: list[tuple], workers: int) -> list[tuple]:
+    """按 ``workers`` 决定串行或并行执行；并行用 fork 池（子进程继承已注册的
+    ``CUSTOM`` 决策器工厂，无需重新注册）。"""
+    if workers and workers > 1:
+        ctx = mp.get_context("fork")
+        with ctx.Pool(processes=min(workers, len(tasks))) as pool:
+            return pool.map(_play_task, tasks, chunksize=1)
+    return [_play_task(t) for t in tasks]
+
+
+def resolve_workers(workers: int) -> int:
+    """``0`` 表示自动：保留若干核给主进程/其他任务。"""
+    if workers and workers > 0:
+        return workers
+    return max(1, (os.cpu_count() or 4) - 4)
+
+
 def paired_ab(
     treatment: str,
     baseline: str = "heuristic",
@@ -121,8 +150,13 @@ def paired_ab(
     base_score: int = 1,
     seed: int = 20260928,
     field: str | None = None,
+    workers: int = 1,
 ) -> ArmResult:
-    """四座位旋转配对 A/B。``field`` 为另三座名字（默认=baseline）。"""
+    """四座位旋转配对 A/B。``field`` 为另三座名字（默认=baseline）。
+
+    ``workers > 1`` 时以多进程并行跑对局。**输出与串行逐位一致**：每场的结果只由
+    ``seed*100003+index`` 决定，且 worker 不共享可变状态（决策器工厂经 fork 继承）。
+    """
     _bootstrap_main_repo()
     field_list = [n.strip() for n in (field or baseline).split(",") if n.strip()]
     if len(field_list) == 1:
@@ -139,33 +173,49 @@ def paired_ab(
 
     started = time.perf_counter()
     same_field = len(set(field_list)) == 1 and field_list[0] == baseline
+
+    # 先建**全部**对局任务，再一次性跑（串行/并行同一套任务与顺序）。
+    base_tasks: list[tuple] = []
     if same_field:
-        shared = [
-            _play([baseline] * SEATS, i, rounds=rounds, base_score=base_score, seed=seed)
-            for i in range(matches)
-        ]
-        baseline_runs = [[row[s] for s in range(SEATS)] for row in shared]
+        for i in range(matches):
+            base_tasks.append((tuple([baseline] * SEATS), i, rounds, base_score, seed))
     else:
-        baseline_runs = [
-            [
-                _play(names_for(r, baseline), i, rounds=rounds, base_score=base_score, seed=seed)[r]
-                for r in range(SEATS)
-            ]
-            for i in range(matches)
-        ]
+        for i in range(matches):
+            for rotation in range(SEATS):
+                base_tasks.append((tuple(names_for(rotation, baseline)), i, rounds, base_score, seed))
+    treat_tasks: list[tuple] = []
+    for rotation in range(SEATS):
+        names = tuple(names_for(rotation, treatment))
+        for i in range(matches):
+            treat_tasks.append((names, i, rounds, base_score, seed))
+
+    all_res = _run_tasks(base_tasks + treat_tasks, workers)
+    base_res = all_res[: len(base_tasks)]
+    treat_res = all_res[len(base_tasks):]
+
+    if same_field:
+        baseline_runs = [[row[s] for s in range(SEATS)] for row in base_res]
+    else:
+        baseline_runs = [[None] * SEATS for _ in range(matches)]
+        k = 0
+        for i in range(matches):
+            for rotation in range(SEATS):
+                baseline_runs[i][rotation] = base_res[k][rotation]
+                k += 1
 
     labels = ("总得分", "名次分", "白板数", "胡次数", "番数总和")
     diffs: dict[str, list[float]] = {label: [] for label in labels}
     t_score = b_score = 0
+    k = 0
     for rotation in range(SEATS):
-        names = names_for(rotation, treatment)
         for i in range(matches):
-            mine = _play(names, i, rounds=rounds, base_score=base_score, seed=seed)[rotation]
+            mine = treat_res[k][rotation]
             theirs = baseline_runs[i][rotation]
             for label, a, b in zip(labels, mine, theirs):
                 diffs[label].append(a - b)
             t_score += mine[0]
             b_score += theirs[0]
+            k += 1
     return ArmResult(
         differences=diffs,
         pairs=matches * SEATS,
@@ -175,4 +225,4 @@ def paired_ab(
     )
 
 
-__all__ = ["SEATS", "ArmResult", "paired_ab"]
+__all__ = ["SEATS", "ArmResult", "paired_ab", "resolve_workers"]

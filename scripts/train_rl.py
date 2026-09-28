@@ -49,6 +49,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--entropy", type=float, default=0.01)
     ap.add_argument("--batch", type=int, default=1024)
     ap.add_argument("--reward-scale", type=float, default=10.0)
+    ap.add_argument("--save-every", type=int, default=10, help="每 N 个 episode 存一次检查点（抗环境回收）")
     ap.add_argument("--init-from", default="", help="可选：从已有 params.json 热启")
     args = ap.parse_args(argv)
 
@@ -108,6 +109,14 @@ def main(argv: list[str] | None = None) -> int:
             log.write(json.dumps(row) + "\n")
             log.flush()
             batch = []
+            # 周期性检查点：环境会周期性回收长跑进程，不能只在结束时保存
+            if cfg and args.save_every and ep % args.save_every == 0:
+                rl_net.save_params(params, out / "params.json", cfg=cfg,
+                                   extra={"seed": args.seed, "input_dim": input_dim,
+                                          "total_idx": total_idx, "episodes_done": ep,
+                                          "stats_from": args.stats_from, "checkpoint": True})
+                rl_net.save_params(params, out / f"params.ep{ep}.json", cfg=cfg,
+                                   extra={"episodes_done": ep, "checkpoint": True})
 
     rl_net.save_params(params, out / "params.json", cfg=cfg,
                        extra={"seed": args.seed, "episodes": args.episodes,

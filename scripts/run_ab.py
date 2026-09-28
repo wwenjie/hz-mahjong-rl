@@ -33,10 +33,15 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--rounds", type=int, default=8)
     ap.add_argument("--seeds", default="20260928,771014")
     ap.add_argument("--field", default="")
+    ap.add_argument("--workers", type=int, default=0,
+                    help="并行 worker 数；0=自动(核数-4)，1=串行")
     ap.add_argument("--out", default="")
     args = ap.parse_args(argv)
 
     seeds = [int(s) for s in args.seeds.split(",") if s.strip()]
+    workers = ev.resolve_workers(args.workers)
+    if workers > 1:
+        print(f"并行对拍：workers={workers}")
     arms: list[str] = []
     for spec in args.arm:
         name, _, path = spec.partition("=")
@@ -67,6 +72,7 @@ def main(argv: list[str] | None = None) -> int:
                 rounds=args.rounds,
                 seed=seed,
                 field=args.field or None,
+                workers=workers,
             )
             summary = {}
             for label, values in r.differences.items():
