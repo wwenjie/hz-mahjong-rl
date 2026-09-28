@@ -45,9 +45,15 @@ def main(argv: list[str] | None = None) -> int:
             arms.append(name)  # 直接用主仓库档位名
             continue
         payload = json.loads(Path(path).read_text(encoding="utf-8"))
-        from nnrl.decider import register_mlp_value_arm
+        if str(payload.get("version", "")).startswith("nnrl-rl"):
+            from nnrl.decider import register_rl_arm
 
-        arms.append(register_mlp_value_arm(payload, label=name))
+            params = payload.get("params", payload)
+            arms.append(register_rl_arm(params, label=name))
+        else:
+            from nnrl.decider import register_mlp_value_arm
+
+            arms.append(register_mlp_value_arm(payload, label=name))
 
     results: dict = {"baseline": args.baseline, "matches": args.matches, "seeds": seeds, "arms": {}}
     for arm in arms:

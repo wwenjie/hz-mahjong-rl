@@ -90,6 +90,25 @@ def register_mlp_value_arm(payload: dict, label: str = "mlp-value") -> str:
     return label
 
 
+def register_rl_arm(params: dict, label: str = "rl", *, sample: bool = False, seed: int = 0) -> str:
+    """把 RL 决策器注册进评测器，返回可用于 A/B 的档位名。
+
+    ``sample=False``（默认）⇒ 评测时用 argmax，**确定性**，符合对拍的可复现要求。
+    """
+    from . import eval as ev
+    from . import rl_net
+    from .rl_play import RLPolicy
+
+    ev._bootstrap_main_repo()
+    cfg = rl_net.RLCfg()
+
+    def factory():
+        return RLPolicy(params, cfg=cfg, sample=sample, seed=seed, label=label)
+
+    ev.CUSTOM[label] = factory
+    return label
+
+
 def _qualifier_mode():
     from majiang.strategy.policy import Mode
 
@@ -106,4 +125,4 @@ def _without_tile(situation, tile: int):
     return _replace(situation, hand=situation.hand.without_tile(tile))
 
 
-__all__ = ["MLPValueDecider"]
+__all__ = ["MLPValueDecider", "register_mlp_value_arm", "register_rl_arm"]
