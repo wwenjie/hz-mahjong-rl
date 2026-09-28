@@ -382,3 +382,110 @@
 | 5 | **没有做通用网页检索** | `web_search` 不可用，可能遗漏非 arXiv 资料（见"检索方法"） |
 | 6 | **AlphaStar 联盟机制为转述** | Nature 付费，未取原文（问题 4 不确定项 1） |
 | 7 | **Suphx 网络层数/通道数、oracle 退火函数** | ar5iv 正文中为图片/`[math]`，未取到数值（问题 1、4） |
+
+---
+
+## 补检（第二轮）：问题 3/5/1 的缺口
+
+**本轮环境更正（重要）**：上一轮报告 `web_search` 不可用。**本轮核心 `web_search`（`openclaw:core`）仍返回 `disabled`，但 MCP 工具 `websearch__web_search`（AIGW 网关）可用，`web_fetch`（core）可用**——本轮所有直取 URL 均 **HTTP 200**。因此**本轮补上了上一轮明确缺失的"通用网页检索"**，只补三个缺口，前文不改。
+
+---
+
+### 补检 1（对应问题 3）：从零自对弈需要多少局才能超过一个体面的手写启发式——量级参照
+
+**结论**：**"多少局"仍无直接来源（维持"未找到可靠来源"）**；但本轮取到**最贴近"超过手写启发式"的定量时间锚**——DouZero「**单机 48 核 + 4×1080Ti，从零训练半天即超过启发式规则**」，以及一条**反向锚**（朴素 DQN/A3C 训 20 天仍打不过简单规则）。
+
+**【原文】DouZero —— "半天超过启发式规则"（最贴近问题 3 的定量锚）**
+- 链接（HTTP 200）：https://arxiv.org/html/2106.06135v1
+- 原文：「Trained from scratch in a single server with only 48 cores and four 1080Ti GPUs, DouZero **outperforms CQN and the heuristic rules in half a day**, beats our internal supervised agents in two days, and surpasses DeltaDou in ten days.」
+- 原文（反向锚，说明"训不动"是常态）：「In practice, **CQN can not even beat simple heuristic rules after twenty days of training**.」；「DQN and A3C are shown to have **less than 20% winning percentage against simple rule-based agents even with twenty days of training**」
+- 用途：**"从零 + 家用级算力 + 超过手写启发式"最近的定量证据**。**注意：给的是训练时间不是局数**，正文未给局数，故**"局数"缺口仍未闭合**。
+
+**【一手】LuckyJ（腾讯）—— 唯一"从零 <1500 场到 10 段"**
+- 链接（HTTP 200）：https://haobofu.github.io/（作者本人主页）
+- 原文：「On 30th May 2023, our Mahjong AI LuckyJ reached 10 dan at Tenhou.net. It is by far **the only Mahjong AI that reached 10 dan from scratch using under 1500 matches**.」
+- 证据等级：**【一手（作者主页声明）】**。**非论文**；"场（match）"≠"局"；对手是**人类天梯**不是手写启发式。用途：**"从零 + 极少样本"在麻将域被宣称存在**，但**不能作为"超过启发式所需局数"的判据**。
+
+**【原文】麻将域其他量级锚（本轮直取正文）**
+- Suphx 稳定段位 **8.74 dan**——Meowjong 论文 Related Works 段原文：「Suphx eventually reached a stable rank of **8.74 dan** on Tenhou, which is about 2 dan higher than Bakuuchi, and is higher than 99.99% of all the officially ranked human players on Tenhou, **though at a cost of needing extremely heavy computational resources for training**.」链接（HTTP 200）：https://arxiv.org/html/2202.12847v3 ——【原文转述 Suphx】。
+- Mahjax —— 「applying it to Mahjong requires a computational infrastructure capable of generating **billions of game steps**」；训练 **1 亿环境步 / 单卡 GH200 约 5.8 小时**。链接（HTTP 200）：https://www.alphaxiv.org/abs/2605.20577 ——【原文（alphaxiv 页面）】。
+- 其余（DouZero"天数"级、DanZero 30 天/160 CPU+1 GPU、Big 2 ~300 万局/2 天、AlphaZero 300k steps/4 小时超 Stockfish）见前文问题 3 表，本轮不重复。
+
+**小结（问题 3）**：量级参照宜用**"算力 × 时间"**表达——家用级 4 GPU / 数天；麻将域从零到 10 段可 <1500 场（LuckyJ，非论文）；**"超过手写启发式所需的局数"仍无可靠来源**。
+
+---
+
+### 补检 2（对应问题 1/5）：听口宽度 / 进张数（ukeire）作为**输入特征** vs 作为**训练目标**
+
+**结论（严格区分两类证据）**：
+- **作为输入特征**：**有直接证据**（前文 Mortal 代码级 / Suphx look-ahead 特征级；本轮新增"听牌/听张被显式建模"的域内先例）。
+- **作为 RL 辅助目标（auxiliary loss）**：**仍无直接来源**（维持"未找到可靠来源"）。本轮新增一条**域内先例**：把"对手是否听牌 / 听什么牌"做成独立预测任务并与主模型合并——**但这是监督式多任务（独立头），不是 RL aux loss**。
+
+**【原文】Zheng 等 2019 —— 四网络合并成一个模型，含"预测对手听牌 / 听张 / 点数变化"**
+- 链接（HTTP 200）：https://www.jstage.jst.go.jp/article/jsaisigtwo/2019/SAI-034/2019_05/_article/-char/en
+- 摘要原文：「**Four deep neural network for discarding and predicting opponents' waiting, waiting tiles and point changes are combined into one model** and performs good during games.」；「**Predicting opponents moves and hidden states is important in imperfect information games.**」
+- 证据等级：**【原文（摘要）】**。
+- 用途：**麻将域内"把听牌状态 / 听张（waiting tiles）做成显式预测任务、并与出牌模型合并"的直接先例**。**关键区别**：这是**监督式多任务/独立头**（各网络分别训练后合并），**不是**把"自己手牌进张宽度"当 RL 主策略的 **auxiliary loss**；且预测对象是**对手**（偏防守）。
+
+**【原文】辅助任务通用理论 + 明确的"可能有害"警告**
+- Liebel & Körner 2018「Auxiliary Tasks in Multi-task Learning」，链接（HTTP 200）：https://arxiv.org/abs/1805.06334 ——【原文（摘要）】：辅助任务可提升最终结果与训练时间。
+- Jaderberg 等 2016「Reinforcement Learning with Unsupervised Auxiliary Tasks」（https://arxiv.org/abs/1611.05397，**上一轮已录，本轮未重取**）——【原文】通用辅助任务可提升表征/数据效率（非麻将域）。
+- **反例警告（仅取到检索摘要，未取正文，标【转述】）**：https://arxiv.org/html/2412.19547v1 摘要片段「**Inadequately trained auxiliary tasks negatively impact the primary task's performance**」——辅助任务**并非无条件有益**。
+
+**小结（问题 1/5）**：「听口/进张作为**特征**」有域内证据；「**对手**听牌/听张作为**预测目标**」本轮新增域内先例（Zheng 2019，监督多任务）；「**自己手牌进张宽度**作为 **RL auxiliary loss**」**仍属原创假设，无可靠来源**，且通用文献提示辅助任务**可能有害，必须消融**。
+
+---
+
+### 补检 3（对应问题 4）：非传递性 / 策略循环的公开证据，与 league / exploiter 标准做法
+
+**结论**：
+- **麻将域专门的"非传递/策略循环实证"：仍未找到可靠来源。**
+- **非完全信息博弈（一般）层面：证据强且直接**（本轮新增两篇关于"循环式最优反应/非传递"的原文）。
+- **AlphaStar 的循环说明与 league/exploiter：本轮首次取到官方一手博文，等级由上一轮"转述"升级为【原文（一手博文）】**。
+- **league / exploiter 标准做法**：一手（DeepMind 博文）+ 复现（mini-AlphaStar）+ 改进论文（NeurIPS 2023 OAL，转述）。
+
+**【原文】非完全信息博弈中自对弈"循环/灾难性"的直接陈述**
+- 链接（HTTP 200）：https://arxiv.org/html/2502.08938v1（Reevaluating Policy Gradient Methods for IIGs）
+- 原文：「because **imperfect information induces cyclical best response dynamics**, such an approach can **fail catastrophically, yielding policies that are maximally exploitable**.」
+- 原文：「While PG methods can at least express non-deterministic policies, **their learning dynamics generally cycle, diverge or exhibit chaotic behavior, rather than converge to Nash equilibria**.」
+- 用途：**"纯自对弈在非完全信息博弈里会转圈/发散"的直接文献背书**——对应 LOG.md 的"自对弈场地对任何偏离都给正分"。
+
+**【原文】非传递是"真实游戏的普遍结构"（PSD-PSRO，NeurIPS 2023，腾讯 AI Lab + PKU）**
+- 链接（HTTP 200）：https://arxiv.org/html/2306.16884v1
+- 原文：「**Most real-world games demonstrate strong non-transitivity**, where the winning rule follows a cyclic pattern (e.g., the strategy cycle in Rock-Paper-Scissors).」
+- 原文：「**Traditional algorithms, like simple self-play, fail to converge to a NE in games with strong non-transitivity**.」
+- 原文（指出常见多样性指标不够）：「a more diverse (according to their diversity metrics) population **⇏** closer to a full game NE」——**对应 LOG.md"多样性指标本身不够"的担忧**。
+- 用途：标准对策是 **PSRO 家族 + Population Exploitability / Policy Hull 度量**，而非单靠自对弈均分。
+
+**【原文（一手）】AlphaStar 官方博文：RPS 式循环 + main/exploiter 联盟**
+- 链接（HTTP 200）：https://deepmind.google/blog/alphastar-grandmaster-level-in-starcraft-ii-using-multi-agent-reinforcement-learning/
+- 原文（循环）：「in the game rock-paper-scissors, an agent may currently prefer to play rock... As self-play progresses, a new agent will then choose to switch to **paper**... Later, the agent will switch to **scissors**, and eventually back to **rock**, creating a cycle. **Fictitious self-play**... is one solution to cope with this challenge.」
+- 原文（league/exploiter）：「**we need both main agents whose goal is to win versus everyone, and also exploiter agents that focus on helping the main agent grow stronger by exposing its flaws**, rather than maximising their own win rate against all players.」
+- 证据等级：**【原文（DeepMind 一手博文）】**——**上一轮"AlphaStar 联盟为转述"在本轮升级为已取到一手来源（博文层面）**。
+- **保留不确定性**：**Nature 正文（doi:10.1038/s41586-019-1724-z）只取到 Data/Code availability 与参考文献段**，正文被 cookie 墙挡住（HTTP 200 但内容不含方法正文），故 **PFSP/exploiter 的精确超参仍未取到 Nature 原文**。
+
+**【原文】mini-AlphaStar 复现：main exploiter 的对手选择逻辑**
+- 链接（HTTP 200）：https://arxiv.org/html/2104.06890v2
+- 原文摘要：「For main exploiters, they first arbitrarily choose a main player. **If the win rate against it is above 0.1, they will return it as the opponent**...」；「AS uses **128,000 CPU cores and 384 TPUs** for training while lasting **44 training days**」
+- 证据等级：**【原文（第三方复现描述）】**。用途：exploiter"选谁当对手"是**显式规则**，可移植。
+
+**【转述（仅检索摘要，未取正文）】AlphaStar 联盟结构（NeurIPS 2023 改进论文）**
+- 摘要：「The AlphaStar league consists of **four (yet three types) constantly-learning agents: one main agent, one main exploiter, and two league exploiters**.」来源 https://neurips.cc/virtual/2023/poster/70220 —— **标【转述】**。
+
+**【原文】EGTA —— 检测/分析非传递策略的标准方法论**
+- 链接（HTTP 200）：https://arxiv.org/html/2403.04018v1（Wellman, Tuyls 等，EGTA 综述）
+- 原文：「the model of the game... is derived by **interrogation of a procedural description of the game environment**.」；「the empirical game's payoffs are **induced from noisy or sparse simulation data**, and so are subject to **approximation error**」
+- 用途：**"把自对弈产出诱导成经验收益矩阵、再求元层均衡"是检测非传递/循环的标准做法**；也直接解释本项目"自己的复制品当对手→评分失真"。
+
+**小结（问题 4）**：麻将域非传递**专门实证仍缺**；但**非完全信息博弈层面证据充足**（2502.08938 循环/灾难性；2306.16884 非传递普遍 + PSRO；Balduzzi 2004.09468 陀螺）；**AlphaStar 的 RPS 循环与 exploiter 联盟已取到一手博文**；**标准做法 = main + exploiter 联盟 / PSRO 家族，并用 exploitability 类指标（而非自对弈得分）评估**。
+
+---
+
+### 本轮仍存的不确定性
+
+1. **"多少局超过手写启发式"仍无直接来源**：最近锚是 DouZero"半天超启发式"（时间为刻度，非局数）。**未闭合。**
+2. **听口宽度做 RL auxiliary loss 仍无可靠来源**：仅有"对手听牌/听张做监督预测头"的域内先例（Zheng 2019）；通用文献提示辅助任务**可能有害**。
+3. **麻将域"策略循环"的直接实证仍缺**：证据来自一般非完全信息博弈 + RPS。
+4. **AlphaStar Nature 正文未取到**（cookie/付费墙），PFSP 精确机制为"博文 + 第三方复现 + 检索摘要"混合等级。
+5. **LuckyJ 的"<1500 场"是一手主页声明、非论文**，口径是"场/天梯段位"，不可直接换算为"超过启发式的局数"。
+6. **DouZero 的"半天"对应局数未知**（正文未给），故仍不能换算成"局数"。

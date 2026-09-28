@@ -32,6 +32,10 @@ CAND_FEATURE_NAMES: tuple[str, ...] = (
     "feed_cost",
     "god_penalty",
     "total",
+    # 精确进张数（只对最小向听候选计算；其余置 0）。
+    # 这是教师 tiebreak 唯一使用的量，也是 A 定位的「听口宽度」缺口所在——
+    # 缺了它，学生既克隆不了教师（差 6.34% 的 tiebreak），也无法在 RL 中改善听口。
+    "ukeire",
 )
 CAND_FEATURE_COUNT = len(CAND_FEATURE_NAMES)
 
@@ -98,13 +102,45 @@ def candidate_features(heuristic_inner, situation):
     mask = np.zeros((n_kinds,), dtype=np.float32)
     from majiang.rules.action import Action
 
+    scored: dict[int, object] = {}
     for tile in range(n_kinds):
         if situation.hand.counts[tile] <= 0:
             continue
         try:
-            score = heuristic_inner._score_discard(situation, Action(DISCARD, tile=tile))  # noqa: SLF001
+            scored[tile] = heuristic_inner._score_discard(situation, Action(DISCARD, tile=tile))  # noqa: SLF001
         except Exception:
             continue
+
+    # 精确进张：只算向听最小的那组候选（教师 tiebreak 的适用范围），共用 memo 提速
+    ukeire: dict[int, float] = {}
+    if scored:
+        min_shanten = min(score.shanten for score in scored.values())
+        visible = None
+        memo: dict = {}
+        for tile, score in scored.items():
+            if score.shanten != min_shanten:
+                continue
+            counts = list(situation.hand.counts)
+            counts[tile] -= 1
+            if visible is None:
+                from majiang.rules import shanten as _shanten
+
+                visible = _shanten.visible_counts(
+                    situation.hand.counts,
+                    [meld.tiles for meld in situation.all_melds],
+                    situation.discards,
+                )
+            from majiang.rules import shanten as _shanten
+
+            try:
+                entries = _shanten.ukeire(
+                    counts, situation.hand.meld_count, visible=visible, memo=memo
+                )
+                ukeire[tile] = float(sum(copy for _, copy in entries))
+            except Exception:
+                ukeire[tile] = 0.0
+
+    for tile, score in scored.items():
         mask[tile] = 1.0
         cand[tile] = (
             float(situation.hand.counts[tile]),
@@ -117,6 +153,7 @@ def candidate_features(heuristic_inner, situation):
             float(score.feed_cost),
             float(score.god_penalty),
             float(score.total),
+            ukeire.get(tile, 0.0),
         )
     return x, cand, mask
 

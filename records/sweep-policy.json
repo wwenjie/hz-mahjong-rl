@@ -1,0 +1,63 @@
+{
+  "fingerprint": "d9cc11a5322e03ededeb9cd986853e35333e683192c6fc1f6c358f2a15497828",
+  "baseline_teacher_agreement": 0.9365918097754293,
+  "epochs": 60,
+  "seed": 20260928,
+  "rows": [
+    {
+      "hidden": [
+        32,
+        32
+      ],
+      "params": 2369,
+      "valid_agreement": 0.9075297713279724,
+      "elapsed_s": 5.0
+    },
+    {
+      "hidden": [
+        64,
+        64
+      ],
+      "params": 6785,
+      "valid_agreement": 0.9088507294654846,
+      "elapsed_s": 0.9
+    },
+    {
+      "hidden": [
+        128,
+        128
+      ],
+      "params": 21761,
+      "valid_agreement": 0.9062087535858154,
+      "elapsed_s": 0.9
+    },
+    {
+      "hidden": [
+        256,
+        256
+      ],
+      "params": 76289,
+      "valid_agreement": 0.9101717472076416,
+      "elapsed_s": 0.9
+    },
+    {
+      "hidden": [
+        512,
+        512
+      ],
+      "params": 283649,
+      "valid_agreement": 0.9035667181015015,
+      "elapsed_s": 1.2
+    },
+    {
+      "hidden": [
+        512,
+        512,
+        512
+      ],
+      "params": 546305,
+      "valid_agreement": 0.9101717472076416,
+      "elapsed_s": 1.9
+    }
+  ]
+}
