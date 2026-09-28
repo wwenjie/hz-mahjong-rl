@@ -76,7 +76,8 @@ def _masked_logits(model, flat, shape, *, skip=None, residual=False):
 
     logits = model(flat).reshape(shape[0], shape[1])
     if residual:
-        z = flat.reshape(shape[0], shape[1], INPUT_PER_CAND)[:, :, -1]
+        # **用扁平索引**：候选特征在向量里有 GLOBAL_FEATURE_COUNT 的偏移
+        z = flat.reshape(shape[0], shape[1], INPUT_PER_CAND)[:, :, _flat_index("total")]
         logits = logits + skip * z
     return logits
 
@@ -128,6 +129,10 @@ def train_policy(data, valid, cfg: PolicyConfig) -> PolicyResult:
         prev = width
     layers.append(torch.nn.Linear(prev, 1))
     model = torch.nn.Sequential(*layers).to(device)
+    # 末层零初始化 ⇒ 初始 logits = skip×total，起点严格等于教师（平凡基线）
+    with torch.no_grad():
+        model[-1].weight.zero_()
+        model[-1].bias.zero_()
     # 残差跳连：初始 1.0 ⇒ 学生起点 = 教师的 total 排序（平凡基线）
     skip = torch.nn.Parameter(torch.ones(1, device=device))
     params = list(model.parameters()) + ([skip] if cfg.residual else [])
@@ -137,10 +142,35 @@ def train_policy(data, valid, cfg: PolicyConfig) -> PolicyResult:
     def fwd(flat, shape):
         return _masked_logits(model, flat, shape, skip=skip, residual=cfg.residual)
 
+    def agreement(fx, mx, yy):
+        with torch.no_grad():
+            lg = fwd(fx, (int(yy.numel()), KINDS)).masked_fill(mx <= 0, -1e9)
+            return float((lg.argmax(1) == yy).float().mean())
+
     n = n_tr
     best = -1.0
     best_state = None
     history: list[dict] = []
+    # 起点一致率（零 MLP + skip=1 应恰好等于教师基线）——用于确认管线无偏
+    init_agree = agreement(
+        fva[
+            (
+                torch.arange(n_va, device=device)[:, None] * KINDS
+                + torch.arange(KINDS, device=device)[None, :]
+            ).reshape(-1)
+        ],
+        mva_t,
+        yva_t,
+    )
+    history.append({"epoch": 0, "valid_agreement": init_agree})
+    # **起点必须作为候选最优**：残差架构下它就是教师基线，天然不劣。
+    # 若只在“有提升”时保存，一旦训练未能超过起点，best_state 保持 None，
+    # 模型会留在最后一轮的差权重上——导出后一致率远低于报告值（已踩坑）。
+    best = init_agree
+    best_state = {
+        "model": {k: v.detach().clone() for k, v in model.state_dict().items()},
+        "skip": skip.detach().clone(),
+    }
     for epoch in range(1, cfg.epochs + 1):
         model.train()
         perm = torch.randperm(n, device=device)
@@ -166,9 +196,14 @@ def train_policy(data, valid, cfg: PolicyConfig) -> PolicyResult:
         history.append({"epoch": epoch, "valid_agreement": agree})
         if agree > best:
             best = agree
-            best_state = {k: v.detach().clone() for k, v in model.state_dict().items()}
+            best_state = {
+                "model": {k: v.detach().clone() for k, v in model.state_dict().items()},
+                "skip": skip.detach().clone(),
+            }
     if best_state is not None:
-        model.load_state_dict(best_state)
+        model.load_state_dict(best_state["model"])
+        with torch.no_grad():
+            skip.copy_(best_state["skip"])
     return PolicyResult(
         model=model.cpu(),
         mean=mean.astype(np.float32),
@@ -180,9 +215,19 @@ def train_policy(data, valid, cfg: PolicyConfig) -> PolicyResult:
 
 
 def _feature_index(name: str) -> int:
+    """``total`` 等在**候选矩阵内**的列号（用于 ``data.cand``）。"""
     from .bc import CAND_FEATURE_NAMES
 
     return CAND_FEATURE_NAMES.index(name)
+
+
+def _flat_index(name: str) -> int:
+    """同一特征在**扁平 per-candidate 向量** ``[全局 | 候选]`` 中的位置。
+
+    两个索引**不能混用**：曾因在扁平向量上用候选内索引（9）导致残差跳连
+    接到全局特征上，学生初始化远低于基线。
+    """
+    return GLOBAL_FEATURE_COUNT + _feature_index(name)
 
 
 def teacher_agreement(data) -> float:
@@ -253,7 +298,7 @@ def policy_scores(payload: dict, global_features: list[float], cand_matrix: list
             (v - float(m)) / float(s)
             for v, m, s in zip(vec, payload["mean"], payload["std"])
         ]
-        z_total = vec[-1] if payload.get("residual") else 0.0
+        z_total = vec[_flat_index("total")] if payload.get("residual") else 0.0
         for layer in payload["layers"]:
             w, b, act = layer["w"], layer["b"], layer["act"]
             nxt = []
